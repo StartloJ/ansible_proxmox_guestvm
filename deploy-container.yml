@@ -1,0 +1,57 @@
+---
+- hosts: proxmox
+  become: false
+  gather_facts: false
+  vars:
+    packages:
+      - 'python-pip'
+    pip_packages:
+      - 'proxmoxer'
+    node: 'pve2'
+    api_user: 'root@pam'
+    api_passwd: 'OpstaTh@1l@nd'
+    api_host: '{{ ansible_host }}'
+    container_hostname: 'ansible.opsta'
+    container_password: 'p@ssw0rd'
+    container_template: 'local:vztmpl/ubuntu-18.04-standard_18.04.1-1_amd64.tar.gz'
+    container_storage: 'local-lvm'
+    container_vmid: 89100
+  tasks:
+    - name: 'Install pip packages'
+      apt:
+        name: "{{ packages }}"
+    - name: 'Install dependencies'
+      pip:
+        name: '{{ pip_packages }}'
+    - name: Create new container automatically selecting the next available vmid.
+      proxmox:
+        node: '{{ node }}'
+        api_user: '{{ api_user }}'
+        api_password: '{{ api_passwd }}'
+        api_host: '{{ api_host }}'
+        vmid: '{{ container_vmid }}'
+        password: '{{ container_password }}'
+        hostname: '{{ container_hostname }}'
+        storage: '{{ container_storage }}'
+        onboot: true
+        ostemplate: '{{ container_template }}'
+      notify:
+        - 'sleep'
+      register: 'create_cts_pve'
+
+    - meta: 'flush_handlers'
+      when: 'created_cts_pve.changed'
+    # - debug: var="create_cts_pve"
+    - name: start container
+      proxmox:
+        node: '{{ node }}'
+        api_user: '{{ api_user }}'
+        api_password: '{{ api_passwd }}'
+        api_host: '{{ api_host }}'
+        vmid: '{{ container_vmid }}'
+        state: started
+  
+  handlers:
+    - name: 'sleep'
+      pause:
+        seconds: 10

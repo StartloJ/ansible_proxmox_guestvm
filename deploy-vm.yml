@@ -1,0 +1,115 @@
+---
+- hosts: proxmox
+  become: false
+  gather_facts: false
+  vars:
+    packages:
+      - 'python-pip'
+    pip_packages:
+      - 'proxmoxer'
+      - 'requests'
+    node: 'pve2'
+    api_user: 'root@pam'
+    api_passwd: 'OpstaTh@1l@nd'
+    api_host: '{{ ansible_host }}'
+    template_name: 'rh76-cloudinit-template'
+    template_vmid: 200
+    kvm:
+      vm1:
+        kvm_newid: 89090
+        kvm_cores: 4
+        kvm_sockets: 1
+        kvm_memory: 8192
+        kvm_net_device: {"net0":"virtio,bridge=vmbr0,firewall=0"}
+        kvm_storage: 'pve2-data4'
+        kvm_state_delete: false
+      vm2:
+        kvm_newid: 89091
+        kvm_cores: 4
+        kvm_sockets: 1
+        kvm_memory: 8192
+        kvm_net_device: {"net0":"virtio,bridge=vmbr0,firewall=0"}
+        kvm_storage: 'pve2-data3'
+        kvm_state_delete: false
+      vm3:
+        kvm_newid: 89092
+        kvm_cores: 4
+        kvm_sockets: 1
+        kvm_memory: 8192
+        kvm_net_device: {"net0":"virtio,bridge=vmbr0,firewall=0"}
+        kvm_storage: 'pve2-data2'
+        kvm_state_delete: false
+  tasks:
+    - name: 'Install pip packages'
+      apt:
+        name: "{{ packages }}"
+    - name: 'Install dependencies'
+      pip:
+        name: '{{ pip_packages }}'
+    - name: Create new container automatically selecting the next available vmid.
+      proxmox_kvm:
+        node: '{{ node }}'
+        api_user: '{{ api_user }}'
+        api_password: '{{ api_passwd }}'
+        api_host: '{{ api_host }}'
+        clone: '{{ template_name }}'
+        vmid: '{{ template_vmid }}'
+        newid: '{{ item.value.kvm_newid }}'
+        name: '{{ item.key }}'
+        cores: '{{ item.value.kvm_cores }}'
+        sockets: '{{ item.value.kvm_sockets }}'
+        memory: '{{ item.value.kvm_memory }}'
+        net: '{{ item.value.kvm_net_device }}'
+        storage: '{{ item.value.kvm_storage }}'
+      with_dict: '{{ kvm }}'
+      loop_control:
+        pause: 7
+      notify:
+        - 'sleep'
+      register: 'created_cts_pve'
+    
+    # - debug: var="created_cts_pve"
+    
+    - name: start container
+      ignore_errors: true
+      proxmox_kvm:
+        node: '{{ node }}'
+        api_user: '{{ api_user }}'
+        api_password: '{{ api_passwd }}'
+        api_host: '{{ api_host }}'
+        name: '{{ item.item.key }}'
+        state: started
+      with_items: '{{ created_cts_pve.results }}'
+      when: 
+        - 'not item.changed | default(false) | bool'
+        - 'not item.item.value.kvm_state_delete | default(false) | bool'
+
+    - name: stop container
+      proxmox_kvm:
+        node: '{{ node }}'
+        api_user: '{{ api_user }}'
+        api_password: '{{ api_passwd }}'
+        api_host: '{{ api_host }}'
+        name: '{{ item.item.key }}'
+        state: stopped
+        force: yes
+      notify:
+        - 'sleep'
+      with_items: '{{ created_cts_pve.results }}'
+      when: 'item.item.value.kvm_state_delete | default(false) | bool'
+
+    - name: remove container
+      proxmox_kvm:
+        node: '{{ node }}'
+        api_user: '{{ api_user }}'
+        api_password: '{{ api_passwd }}'
+        api_host: '{{ api_host }}'
+        name: '{{ item.item.key }}'
+        state: absent
+      with_items: '{{ created_cts_pve.results }}'
+      when: 'item.item.value.kvm_state_delete | default(false) | bool'
+  
+  handlers:
+    - name: 'sleep'
+      pause:
+        seconds: 10

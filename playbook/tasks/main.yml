@@ -1,0 +1,6 @@
+- name: 'prep proxmox hosts for automation'
+  hosts: 'proxmox'
+  gather_facts: false
+
+- import_playbook: pre.yml
+

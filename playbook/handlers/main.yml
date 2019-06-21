@@ -1,0 +1,4 @@
+---
+- name: 'sleep'
+  pause:
+    second: 10
