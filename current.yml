@@ -1,0 +1,80 @@
+---
+- hosts: proxmox-pve1
+  become: false
+  gather_facts: false
+  vars:
+    packages:
+      - 'python-pip'
+    pip_packages:
+      - 'proxmoxer'
+      - 'requests'
+    clusters_node: 'pve1'
+    api_user: 'root@pam'
+    api_passwd: 'OpstaTh@1l@nd'
+    api_host: '{{ ansible_host }}'
+    kvm:
+      vm1:
+        vmid: 89090
+      vm2:
+        vmid: 89091
+      vm3:
+        vmid: 89092
+
+  tasks:
+    - name: delete kvm
+      ignore_errors: true
+      proxmox_kvm:
+        node: '{{ clusters_node }}'
+        api_user: '{{ api_user }}'
+        api_password: '{{ api_passwd }}'
+        api_host: '{{ api_host }}'
+        vmid: '{{ item.value.vmid }}'
+        state: absent
+      with_dict: '{{ kvm }}'
+      register: 'chk_meta'
+
+    # - debug: var='chk_meta'
+    
+    # - name: start container
+    #   ignore_errors: true
+    #   proxmox_kvm:
+    #     node: '{{ node }}'
+    #     api_user: '{{ api_user }}'
+    #     api_password: '{{ api_passwd }}'
+    #     api_host: '{{ api_host }}'
+    #     name: '{{ item.item.key }}'
+    #     state: started
+    #   with_items: '{{ created_cts_pve.results }}'
+    #   when: 
+    #     - 'not item.changed | default(false) | bool'
+    #     - 'not item.item.value.kvm_state_delete | default(false) | bool'
+
+    # - name: stop container
+    #   proxmox_kvm:
+    #     node: '{{ node }}'
+    #     api_user: '{{ api_user }}'
+    #     api_password: '{{ api_passwd }}'
+    #     api_host: '{{ api_host }}'
+    #     name: '{{ item.item.key }}'
+    #     state: stopped
+    #     force: yes
+    #   notify:
+    #     - 'sleep'
+    #   with_items: '{{ created_cts_pve.results }}'
+    #   when: 'item.item.value.kvm_state_delete | default(false) | bool'
+
+    # - name: remove container
+    #   proxmox_kvm:
+    #     node: '{{ node }}'
+    #     api_user: '{{ api_user }}'
+    #     api_password: '{{ api_passwd }}'
+    #     api_host: '{{ api_host }}'
+    #     name: '{{ item.item.key }}'
+    #     state: absent
+    #   with_items: '{{ created_cts_pve.results }}'
+    #   when: 'item.item.value.kvm_state_delete | default(false) | bool'
+  
+  handlers:
+    - name: 'sleep'
+      pause:
+        seconds: 10

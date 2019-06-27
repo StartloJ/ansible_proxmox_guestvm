@@ -1,5 +1,5 @@
 ---
-- hosts: proxmox
+- hosts: proxmox-pve1
   become: false
   gather_facts: false
   vars:
@@ -7,22 +7,22 @@
       - 'python-pip'
     pip_packages:
       - 'proxmoxer'
-    node: 'pve2'
+    node: 'pve1'
     api_user: 'root@pam'
     api_passwd: 'OpstaTh@1l@nd'
     api_host: '{{ ansible_host }}'
     container_hostname: 'ansible.opsta'
     container_password: 'p@ssw0rd'
     container_template: 'local:vztmpl/ubuntu-18.04-standard_18.04.1-1_amd64.tar.gz'
-    container_storage: 'local-lvm'
+    container_cpus: 2
+    container_disk: 10
+    container_memory: 2048
+    container_storage: 'pve1-data3'
+    container_net: '{"net0":"name=eth0,gw=10.88.255.254,ip=10.88.89.100/16,bridge=vmbr0"}'
+    container_dns: '10.88.255.254'
     container_vmid: 89100
   tasks:
-    - name: 'Install pip packages'
-      apt:
-        name: "{{ packages }}"
-    - name: 'Install dependencies'
-      pip:
-        name: '{{ pip_packages }}'
+    
     - name: Create new container automatically selecting the next available vmid.
       proxmox:
         node: '{{ node }}'
@@ -32,7 +32,13 @@
         vmid: '{{ container_vmid }}'
         password: '{{ container_password }}'
         hostname: '{{ container_hostname }}'
+        cores: '{{ container_cpus }}'
+        memory: '{{ container_memory }}'
+        disk: '{{ container_disk }}'
         storage: '{{ container_storage }}'
+        netif: '{{ container_net }}'
+        nameserver: '{{ container_dns }}'
+        searchdomain: '{{ container_dns }}'
         onboot: true
         ostemplate: '{{ container_template }}'
       notify:

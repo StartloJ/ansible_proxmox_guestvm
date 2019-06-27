@@ -1,5 +1,5 @@
 ---
-- hosts: proxmox
+- hosts: proxmox-pve2
   become: false
   gather_facts: false
   vars:
@@ -8,72 +8,189 @@
     pip_packages:
       - 'proxmoxer'
       - 'requests'
-    node: 'pve2'
+    clusters_node: 'pve2'
     api_user: 'root@pam'
     api_passwd: 'OpstaTh@1l@nd'
     api_host: '{{ ansible_host }}'
     template_name: 'rh76-cloudinit-template'
     template_vmid: 200
+    config_kvm_update: true
+    config_kvm_fullclone: true
     kvm:
-      vm1:
+      ocp101-master:
         kvm_newid: 89090
         kvm_cores: 4
         kvm_sockets: 1
         kvm_memory: 8192
-        kvm_net_device: {"net0":"virtio,bridge=vmbr0,firewall=0"}
+        kvm_storage: 'pve2-data4'
+        kvm_add_disk:
+          disk: 'scsi1'
+          store: 'pve2-data5'
+          size: 17
+          format: 'qcow2'
+          ssd_status: 'off'
+        kvm_state_delete: false
+        kvm_disk_resize: false
+        cloud_init: true
+        ipconfig:
+          ip: 'gw=10.88.255.254,ip=10.88.89.90/16'
+          nameserver: '10.88.255.254'
+          user: 'redhat'
+          password: 'password'
+      ocp101-lb:
+        kvm_newid: 89091
+        kvm_cores: 2
+        kvm_sockets: 1
+        kvm_memory: 2048
         kvm_storage: 'pve2-data4'
         kvm_state_delete: false
-      vm2:
-        kvm_newid: 89091
-        kvm_cores: 4
-        kvm_sockets: 1
-        kvm_memory: 8192
-        kvm_net_device: {"net0":"virtio,bridge=vmbr0,firewall=0"}
-        kvm_storage: 'pve2-data3'
-        kvm_state_delete: false
-      vm3:
+        kvm_disk_resize: false
+        cloud_init: true
+        ipconfig:
+          ip: 'gw=10.88.255.254,ip=10.88.89.91/16'
+          nameserver: '10.88.255.254'
+          user: 'redhat'
+          password: 'password'
+      ocp101-app:
         kvm_newid: 89092
         kvm_cores: 4
         kvm_sockets: 1
-        kvm_memory: 8192
-        kvm_net_device: {"net0":"virtio,bridge=vmbr0,firewall=0"}
-        kvm_storage: 'pve2-data2'
+        kvm_memory: 4096
+        kvm_storage: 'pve2-data4'
+        kvm_add_disk:
+          disk: 'scsi1'
+          store: 'pve2-data5'
+          size: 17
+          format: 'qcow2'
+          ssd_status: 'off'
         kvm_state_delete: false
+        kvm_disk_resize: false
+        cloud_init: true
+        ipconfig:
+          ip: 'gw=10.88.255.254,ip=10.88.89.92/16'
+          nameserver: '10.88.255.254'
+          user: 'redhat'
+          password: 'password'
   tasks:
-    - name: 'Install pip packages'
-      apt:
-        name: "{{ packages }}"
-    - name: 'Install dependencies'
-      pip:
-        name: '{{ pip_packages }}'
-    - name: Create new container automatically selecting the next available vmid.
+    # - name: 'Install pip packages'
+    #   apt:
+    #     name: "{{ packages }}"
+    # - name: 'Install dependencies'
+    #   pip:
+    #     name: '{{ pip_packages }}'
+
+    - name: Create new KVM automatically from templates.
       proxmox_kvm:
-        node: '{{ node }}'
+        node: '{{ clusters_node }}'
         api_user: '{{ api_user }}'
         api_password: '{{ api_passwd }}'
         api_host: '{{ api_host }}'
         clone: '{{ template_name }}'
+        full: '{{ config_kvm_fullclone }}'
         vmid: '{{ template_vmid }}'
         newid: '{{ item.value.kvm_newid }}'
+        name: '{{ item.key }}'
+        storage: '{{ item.value.kvm_storage }}'
+      with_dict: '{{ kvm }}'
+      loop_control:
+        pause: 8
+      notify:
+        - 'sleep'
+      register: 'created_cts_pve'
+      when:
+        - not item.value.kvm_state_delete | bool
+
+    - name: Update config hardware.
+      proxmox_kvm:
+        node: '{{ clusters_node }}'
+        api_user: '{{ api_user }}'
+        api_password: '{{ api_passwd }}'
+        api_host: '{{ api_host }}'
+        update: '{{ config_kvm_update }}'
         name: '{{ item.key }}'
         cores: '{{ item.value.kvm_cores }}'
         sockets: '{{ item.value.kvm_sockets }}'
         memory: '{{ item.value.kvm_memory }}'
-        net: '{{ item.value.kvm_net_device }}'
-        storage: '{{ item.value.kvm_storage }}'
       with_dict: '{{ kvm }}'
       loop_control:
-        pause: 7
-      notify:
-        - 'sleep'
-      register: 'created_cts_pve'
-    
+        pause: 3
+      register: 'update_cts_pve'
+      when:
+        - not item.value.kvm_state_delete | bool
+
     # - debug: var="created_cts_pve"
+
+    - name: Add 2nd disk to docker server
+      ignore_errors: true
+      shell: qm set {{ item.value.kvm_newid }} --{{ item.value.kvm_add_disk.disk }} {{ item.value.kvm_add_disk.store }}:{{ item.value.kvm_add_disk.size }},format={{ item.value.kvm_add_disk.format }},ssd={{ item.value.kvm_add_disk.ssd_status }}
+      with_dict: '{{ kvm }}'
+      loop_control:
+        pause: 3
+      when:
+        - item.value.kvm_add_disk is defined
+
+    - name: Resize disk
+      ignore_errors: true
+      shell: qm resize {{ item.value.kvm_newid }} scsi0 +20G
+      with_dict: '{{ kvm }}'
+      when:
+        - not item.value.kvm_state_delete | bool
+        - item.value.kvm_disk_resize | default(false) | bool
     
+    - name: deploy cloud-init ip address
+      ignore_errors: true
+      shell: qm set {{item.value.kvm_newid}} --ipconfig0 {{ item.value.ipconfig.ip }}
+      with_dict: '{{ kvm }}'
+      when:
+        - item.value.cloud_init | default(false) | bool
+        - item.value.ipconfig.ip is defined
+        - not item.value.kvm_state_delete | bool
+
+    - name: deploy cloud-init DNS server
+      ignore_errors: true
+      shell: qm set {{item.value.kvm_newid}} --nameserver {{ item.value.ipconfig.nameserver }}
+      with_dict: '{{ kvm }}'
+      when:
+        - item.value.cloud_init | default(false) | bool
+        - item.value.ipconfig.nameserver is defined
+        - not item.value.kvm_state_delete | bool
+    
+    - name: deploy cloud-init user
+      ignore_errors: true
+      shell: qm set {{item.value.kvm_newid}} --ciuser {{ item.value.ipconfig.user }}
+      with_dict: '{{ kvm }}'
+      when:
+        - item.value.cloud_init | default(false) | bool
+        - item.value.ipconfig.user is defined
+        - not item.value.kvm_state_delete | bool
+
+    - name: deploy cloud-init password
+      ignore_errors: true
+      shell: qm set {{item.value.kvm_newid}} --cipassword {{ item.value.ipconfig.password }}
+      with_dict: '{{ kvm }}'
+      when:
+        - item.value.cloud_init | default(false) | bool
+        - item.value.ipconfig.password is defined
+        - not item.value.kvm_state_delete | bool
+
+    - name: current kvm
+      ignore_errors: true
+      proxmox_kvm:
+        node: '{{ clusters_node }}'
+        api_user: '{{ api_user }}'
+        api_password: '{{ api_passwd }}'
+        api_host: '{{ api_host }}'
+        name: '{{ item.item.key }}'
+        state: current
+      with_items: '{{ update_cts_pve.results }}'
+      register: 'chk_meta'
+    
+    # - debug: var="chk_meta"
+
     - name: start container
       ignore_errors: true
       proxmox_kvm:
-        node: '{{ node }}'
+        node: '{{ clusters_node }}'
         api_user: '{{ api_user }}'
         api_password: '{{ api_passwd }}'
         api_host: '{{ api_host }}'
@@ -81,12 +198,12 @@
         state: started
       with_items: '{{ created_cts_pve.results }}'
       when: 
-        - 'not item.changed | default(false) | bool'
+        - 'not item.failed | default(false) | bool'
         - 'not item.item.value.kvm_state_delete | default(false) | bool'
 
     - name: stop container
       proxmox_kvm:
-        node: '{{ node }}'
+        node: '{{ clusters_node }}'
         api_user: '{{ api_user }}'
         api_password: '{{ api_passwd }}'
         api_host: '{{ api_host }}'
@@ -100,7 +217,7 @@
 
     - name: remove container
       proxmox_kvm:
-        node: '{{ node }}'
+        node: '{{ clusters_node }}'
         api_user: '{{ api_user }}'
         api_password: '{{ api_passwd }}'
         api_host: '{{ api_host }}'
