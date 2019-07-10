@@ -1,8 +1,0 @@
-[proxmox-pve1]
-pve1 ansible_host=10.88.102.4 ansible_user=root ansible_port=22
-
-[proxmox-pve2]
-pve2 ansible_host=10.88.102.5 ansible_user=root ansible_port=22
-
-[proxmox-pve3]
-pve3 ansible_host=10.88.102.6 ansible_user=root ansible_port=22
