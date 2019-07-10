@@ -1,0 +1,21 @@
+---
+- name: Create new KVM automatically from templates.
+  proxmox_kvm:
+    node: '{{ clusters_node }}'
+    api_user: '{{ api_user }}'
+    api_password: '{{ api_passwd }}'
+    api_host: '{{ api_host }}'
+    clone: '{{ template_name }}'
+    full: '{{ config_kvm_fullclone }}'
+    vmid: '{{ template_vmid }}'
+    newid: '{{ item.value.kvm_newid }}'
+    name: '{{ item.key }}'
+    storage: '{{ item.value.kvm_storage }}'
+  with_dict: '{{ kvm }}'
+  loop_control:
+    pause: 8
+  notify:
+    - 'sleep'
+  register: 'created_cts_pve'
+  when:
+    - not item.value.kvm_state_delete | bool

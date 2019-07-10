@@ -1,0 +1,84 @@
+packages:
+  - 'python-pip'
+pip_packages:
+  - 'proxmoxer'
+  - 'requests'
+clusters_node: 'pve2'
+# api_user: 'root@pam'
+# api_passwd: ''
+api_host: '{{ ansible_host }}'
+# template_name: 'cloud-template'
+template_vmid: 9000
+config_kvm_update: true
+config_kvm_fullclone: true
+####################################################
+# Example Config for clone VM from templates
+####################################################
+
+# kvm:
+#   ocp101-master: # VM Name
+#     kvm_newid: 89090
+#     kvm_cores: 4
+#     kvm_sockets: 1
+#     kvm_memory: 16384
+#     kvm_storage: 'pve2-data4'
+#     kvm_add_disk_state: true
+#     kvm_add_disk:
+#       disk: 'scsi1'
+#       store: 'pve2-data5'
+#       size: 17
+#       format: 'qcow2'
+#       ssd_status: 'off'
+#     kvm_state_delete: false
+#     kvm_disk_resize: true
+#     kvm_disk_upsize: '40G'
+#     cloud_init: true
+#     ipconfig:
+#       ip: 'gw=10.88.255.254,ip=10.88.89.90/16'
+#       nameserver: '10.88.255.254'
+#       user: 'redhat'
+#       password: 'password'
+#   ocp101-infra:
+#     kvm_newid: 89091
+#     kvm_cores: 4
+#     kvm_sockets: 1
+#     kvm_memory: 8192
+#     kvm_storage: 'pve2-data4'
+#     kvm_state_delete: false
+#     kvm_disk_resize: true
+#     kvm_disk_upsize: '40G'
+#     kvm_add_disk_state: true
+#     kvm_add_disk:
+#       disk: 'scsi1'
+#       store: 'pve2-data5'
+#       size: 17
+#       format: 'qcow2'
+#       ssd_status: 'off'
+#     cloud_init: true
+#     ipconfig:
+#       ip: 'gw=10.88.255.254,ip=10.88.89.91/16'
+#       nameserver: '10.88.255.254'
+#       user: 'redhat'
+#       password: 'password'
+#   ocp101-app:
+#     kvm_newid: 89092
+#     kvm_cores: 4
+#     kvm_sockets: 1
+#     kvm_memory: 8192
+#     kvm_storage: 'pve2-data4'
+#     kvm_add_disk_state: true
+#     kvm_add_disk:
+#       disk: 'scsi1'
+#       store: 'pve2-data5'
+#       size: 17
+#       format: 'qcow2'
+#       ssd_status: 'off'
+#     kvm_state_delete: false
+#     kvm_disk_resize: true
+#     kvm_disk_upsize: '40G'
+#     cloud_init: true
+#     ipconfig:
+#       ip: 'gw=10.88.255.254,ip=10.88.89.92/16'
+#       nameserver: '10.88.255.254'
+#       user: 'redhat'
+#       password: 'password'

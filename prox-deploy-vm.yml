@@ -1,0 +1,6 @@
+- name: Deploy VM on Proxmox
+  become: true
+  hosts: <set to host vars group>
+  gather_facts: true
+  roles:
+    - deploy-vm

@@ -9,68 +9,80 @@
       - 'proxmoxer'
       - 'requests'
     clusters_node: 'pve2'
-    api_user: 'root@pam'
-    api_passwd: 'OpstaTh@1l@nd'
+    # api_user: 'root@pam'
+    # api_passwd: ''
     api_host: '{{ ansible_host }}'
-    template_name: 'rh76-cloudinit-template'
+    template_name: 'cloudinit-template'
     template_vmid: 200
     config_kvm_update: true
     config_kvm_fullclone: true
-    kvm:
-      ocp101-master:
-        kvm_newid: 89090
-        kvm_cores: 4
-        kvm_sockets: 1
-        kvm_memory: 8192
-        kvm_storage: 'pve2-data4'
-        kvm_add_disk:
-          disk: 'scsi1'
-          store: 'pve2-data5'
-          size: 17
-          format: 'qcow2'
-          ssd_status: 'off'
-        kvm_state_delete: false
-        kvm_disk_resize: false
-        cloud_init: true
-        ipconfig:
-          ip: 'gw=10.88.255.254,ip=10.88.89.90/16'
-          nameserver: '10.88.255.254'
-          user: 'redhat'
-          password: 'password'
-      ocp101-lb:
-        kvm_newid: 89091
-        kvm_cores: 2
-        kvm_sockets: 1
-        kvm_memory: 2048
-        kvm_storage: 'pve2-data4'
-        kvm_state_delete: false
-        kvm_disk_resize: false
-        cloud_init: true
-        ipconfig:
-          ip: 'gw=10.88.255.254,ip=10.88.89.91/16'
-          nameserver: '10.88.255.254'
-          user: 'redhat'
-          password: 'password'
-      ocp101-app:
-        kvm_newid: 89092
-        kvm_cores: 4
-        kvm_sockets: 1
-        kvm_memory: 4096
-        kvm_storage: 'pve2-data4'
-        kvm_add_disk:
-          disk: 'scsi1'
-          store: 'pve2-data5'
-          size: 17
-          format: 'qcow2'
-          ssd_status: 'off'
-        kvm_state_delete: false
-        kvm_disk_resize: false
-        cloud_init: true
-        ipconfig:
-          ip: 'gw=10.88.255.254,ip=10.88.89.92/16'
-          nameserver: '10.88.255.254'
-          user: 'redhat'
-          password: 'password'
+    # kvm:
+    #   ocp101-master:
+    #     kvm_newid: 89090
+    #     kvm_cores: 4
+    #     kvm_sockets: 1
+    #     kvm_memory: 16384
+    #     kvm_storage: 'pve2-data4'
+    #     kvm_add_disk_state: true
+    #     kvm_add_disk:
+    #       disk: 'scsi1'
+    #       store: 'pve2-data5'
+    #       size: 17
+    #       format: 'qcow2'
+    #       ssd_status: 'off'
+    #     kvm_state_delete: false
+    #     kvm_disk_resize: true
+    #     kvm_disk_upsize: '40G'
+    #     cloud_init: true
+    #     ipconfig:
+    #       ip: 'gw=10.88.255.254,ip=10.88.89.90/16'
+    #       nameserver: '10.88.255.254'
+    #       user: 'redhat'
+    #       password: 'password'
+    #   ocp101-infra:
+    #     kvm_newid: 89091
+    #     kvm_cores: 4
+    #     kvm_sockets: 1
+    #     kvm_memory: 8192
+    #     kvm_storage: 'pve2-data4'
+    #     kvm_state_delete: false
+    #     kvm_disk_resize: true
+    #     kvm_disk_upsize: '40G'
+    #     kvm_add_disk_state: true
+    #     kvm_add_disk:
+    #       disk: 'scsi1'
+    #       store: 'pve2-data5'
+    #       size: 17
+    #       format: 'qcow2'
+    #       ssd_status: 'off'
+    #     cloud_init: true
+    #     ipconfig:
+    #       ip: 'gw=10.88.255.254,ip=10.88.89.91/16'
+    #       nameserver: '10.88.255.254'
+    #       user: 'redhat'
+    #       password: 'password'
+    #   ocp101-app:
+    #     kvm_newid: 89092
+    #     kvm_cores: 4
+    #     kvm_sockets: 1
+    #     kvm_memory: 8192
+    #     kvm_storage: 'pve2-data4'
+    #     kvm_add_disk_state: true
+    #     kvm_add_disk:
+    #       disk: 'scsi1'
+    #       store: 'pve2-data5'
+    #       size: 17
+    #       format: 'qcow2'
+    #       ssd_status: 'off'
+    #     kvm_state_delete: false
+    #     kvm_disk_resize: true
+    #     kvm_disk_upsize: '40G'
+    #     cloud_init: true
+    #     ipconfig:
+    #       ip: 'gw=10.88.255.254,ip=10.88.89.92/16'
+    #       nameserver: '10.88.255.254'
+    #       user: 'redhat'
+    #       password: 'password'
   tasks:
     # - name: 'Install pip packages'
     #   apt:
@@ -99,6 +111,19 @@
       register: 'created_cts_pve'
       when:
         - not item.value.kvm_state_delete | bool
+      
+    - name: stop container
+      proxmox_kvm:
+        node: '{{ clusters_node }}'
+        api_user: '{{ api_user }}'
+        api_password: '{{ api_passwd }}'
+        api_host: '{{ api_host }}'
+        name: '{{ item.key }}'
+        state: stopped
+        force: yes
+      with_dict: '{{ kvm }}'
+      notify:
+        - 'sleep'
 
     - name: Update config hardware.
       proxmox_kvm:
@@ -128,10 +153,11 @@
         pause: 3
       when:
         - item.value.kvm_add_disk is defined
+        - item.value.kvm_add_disk_state | default(false) | bool
 
     - name: Resize disk
       ignore_errors: true
-      shell: qm resize {{ item.value.kvm_newid }} scsi0 +20G
+      shell: qm resize {{ item.value.kvm_newid }} scsi0 +{{ item.value.kvm_disk_upsize }}
       with_dict: '{{ kvm }}'
       when:
         - not item.value.kvm_state_delete | bool
@@ -201,19 +227,6 @@
         - 'not item.failed | default(false) | bool'
         - 'not item.item.value.kvm_state_delete | default(false) | bool'
 
-    - name: stop container
-      proxmox_kvm:
-        node: '{{ clusters_node }}'
-        api_user: '{{ api_user }}'
-        api_password: '{{ api_passwd }}'
-        api_host: '{{ api_host }}'
-        name: '{{ item.item.key }}'
-        state: stopped
-        force: yes
-      notify:
-        - 'sleep'
-      with_items: '{{ created_cts_pve.results }}'
-      when: 'item.item.value.kvm_state_delete | default(false) | bool'
 
     - name: remove container
       proxmox_kvm:

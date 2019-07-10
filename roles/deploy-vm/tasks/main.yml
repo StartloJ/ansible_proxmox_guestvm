@@ -1,0 +1,5 @@
+---
+- name: Import task
+  block:
+    - import_tasks: pre.yml
+

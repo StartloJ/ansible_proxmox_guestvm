@@ -1,0 +1,74 @@
+---
+- name: Update config hardware.
+  proxmox_kvm:
+    node: '{{ clusters_node }}'
+    api_user: '{{ api_user }}'
+    api_password: '{{ api_passwd }}'
+    api_host: '{{ api_host }}'
+    update: '{{ config_kvm_update }}'
+    name: '{{ item.key }}'
+    cores: '{{ item.value.kvm_cores }}'
+    sockets: '{{ item.value.kvm_sockets }}'
+    memory: '{{ item.value.kvm_memory }}'
+  with_dict: '{{ kvm }}'
+  loop_control:
+    pause: 3
+  register: 'update_cts_pve'
+  when:
+    - not item.value.kvm_state_delete | bool
+
+# - debug: var="created_cts_pve"
+
+- name: Add 2nd disk to docker server
+  ignore_errors: true
+  shell: qm set {{ item.value.kvm_newid }} --{{ item.value.kvm_add_disk.disk }} {{ item.value.kvm_add_disk.store }}:{{ item.value.kvm_add_disk.size }},format={{ item.value.kvm_add_disk.format }},ssd={{ item.value.kvm_add_disk.ssd_status }}
+  with_dict: '{{ kvm }}'
+  loop_control:
+    pause: 3
+  when:
+    - item.value.kvm_add_disk is defined
+    - item.value.kvm_add_disk_state | default(false) | bool
+
+- name: Resize disk
+  ignore_errors: true
+  shell: qm resize {{ item.value.kvm_newid }} scsi0 +{{ item.value.kvm_disk_upsize }}
+  with_dict: '{{ kvm }}'
+  when:
+    - not item.value.kvm_state_delete | bool
+    - item.value.kvm_disk_resize | default(false) | bool
+
+- name: deploy cloud-init ip address
+  ignore_errors: true
+  shell: qm set {{item.value.kvm_newid}} --ipconfig0 {{ item.value.ipconfig.ip }}
+  with_dict: '{{ kvm }}'
+  when:
+    - item.value.cloud_init | default(false) | bool
+    - item.value.ipconfig.ip is defined
+    - not item.value.kvm_state_delete | bool
+
+- name: deploy cloud-init DNS server
+  ignore_errors: true
+  shell: qm set {{item.value.kvm_newid}} --nameserver {{ item.value.ipconfig.nameserver }}
+  with_dict: '{{ kvm }}'
+  when:
+    - item.value.cloud_init | default(false) | bool
+    - item.value.ipconfig.nameserver is defined
+    - not item.value.kvm_state_delete | bool
+
+- name: deploy cloud-init user
+  ignore_errors: true
+  shell: qm set {{item.value.kvm_newid}} --ciuser {{ item.value.ipconfig.user }}
+  with_dict: '{{ kvm }}'
+  when:
+    - item.value.cloud_init | default(false) | bool
+    - item.value.ipconfig.user is defined
+    - not item.value.kvm_state_delete | bool
+
+- name: deploy cloud-init password
+  ignore_errors: true
+  shell: qm set {{item.value.kvm_newid}} --cipassword {{ item.value.ipconfig.password }}
+  with_dict: '{{ kvm }}'
+  when:
+    - item.value.cloud_init | default(false) | bool
+    - item.value.ipconfig.password is defined
+    - not item.value.kvm_state_delete | bool

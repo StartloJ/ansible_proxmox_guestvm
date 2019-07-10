@@ -1,1 +1,4 @@
 *.retry
+inventories/opsta*
+result_create.json
+template/*
